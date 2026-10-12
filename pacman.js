@@ -9,7 +9,7 @@ class Pacman {
         this.nextDirection = 4;
         this.frameCount = 7;
         this.currentFrame = 1;
-        setInterval(() => {
+        this.animationInterval = setInterval(() => {
             this.changeAnimation();
         }, 100);
     }
@@ -21,18 +21,37 @@ class Pacman {
             this.moveBackwards();
             return;
         }
+        this.wrapAround();
+    }
+
+    wrapAround() {
+        let mapPixelWidth = map[0].length * oneBlockSize;
+        if (this.x + oneBlockSize <= 0) {
+            this.x += mapPixelWidth;
+        } else if (this.x >= mapPixelWidth) {
+            this.x -= mapPixelWidth;
+        }
     }
 
     eat() {
         for (let i = 0; i < map.length; i++) {
             for (let j = 0; j < map[0].length; j++) {
                 if (
-                    map[i][j] == 2 &&
+                    (map[i][j] == 2 || map[i][j] == 4) &&
                     this.getMapX() == j &&
                     this.getMapY() == i
                 ) {
+                    if (map[i][j] == 4) {
+                        frightenedUntil =
+                            Math.max(frightenedUntil, Date.now()) +
+                            frightenedDuration;
+                    }
                     map[i][j] = 3;
                     score++;
+                    foodLeft--;
+                    if (foodLeft <= 0) {
+                        gameWon = true;
+                    }
                 }
             }
         }
@@ -96,14 +115,17 @@ class Pacman {
     checkGhostCollision(ghosts) {
         for (let i = 0; i < ghosts.length; i++) {
             let ghost = ghosts[i];
+            if (ghost.isEatenNow()) {
+                continue;
+            }
             if (
                 ghost.getMapX() == this.getMapX() &&
                 ghost.getMapY() == this.getMapY()
             ) {
-                return true;
+                return i;
             }
         }
-        return false;
+        return -1;
     }
 
     changeDirectionIfPossible() {

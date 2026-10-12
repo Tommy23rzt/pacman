@@ -6,9 +6,32 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pacman</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 1vh 1vw;
+            background-color: black;
+            min-height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        canvas {
+            display: block;
+            width: auto;
+            height: auto;
+            max-width: 98vw;
+            max-height: 98vh;
+            background-color: black;
+        }
+    </style>
 </head>
 
-<body style="margin: 0; background-color: black;">
+<body>
     <canvas id="canvas" width="500" height="500"></canvas>
     <div style="display:none;">
         <img id="animations" src="assets/animations.gif" width="140" height="20">
@@ -16,6 +39,7 @@
     </div>
     <script src="ghost.js"></script>
     <script src="pacman.js"></script>
+    <script src="music.js"></script>
     <script src="game.js"></script>
 </body>
 

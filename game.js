@@ -14,6 +14,13 @@ const DIRECTION_LEFT = 2;
 const DIRECTION_BOTTOM = 1;
 let lives = 3;
 let ghostCount = 4;
+let gameOver = false;
+let gameWon = false;
+let foodLeft = 0;
+let initialFoodCount = 0;
+let frightenedDuration = 7000;
+let frightenedUntil = 0;
+let frightenedScore = 200;
 let ghostImageLocations = [
     { x: 0, y: 0 },
     { x: 176, y: 0 },
@@ -77,6 +84,73 @@ let randomTargetsForGhosts = [
 //     }
 // }
 
+let countFood = () => {
+    let count = 0;
+    for (let i = 0; i < map.length; i++) {
+        for (let j = 0; j < map[0].length; j++) {
+            if (map[i][j] == 2 || map[i][j] == 4) {
+                count++;
+            }
+        }
+    }
+    return count;
+};
+
+let isFrightened = () => Date.now() < frightenedUntil;
+
+let scatterChasePattern = [
+    7000, 20000, 7000, 20000, 5000, 20000, 5000,
+];
+let inScatterPhase = () => {
+    let phaseStart = 0;
+    for (let i = 0; i < scatterChasePattern.length; i++) {
+        if (Date.now() < phaseStart + scatterChasePattern[i]) {
+            return i % 2 === 0;
+        }
+        phaseStart += scatterChasePattern[i];
+    }
+    return false;
+};
+
+let powerPelletCount = 4;
+let powerPelletMinGap = 3;
+
+let placePowerPellets = () => {
+    let candidates = [];
+    for (let i = 0; i < map.length; i++) {
+        for (let j = 0; j < map[0].length; j++) {
+            let pacmanStart = i == 1 && j == 1;
+            let ghostHouse = i >= 10 && i <= 11 && j >= 9 && j <= 10;
+            if (map[i][j] == 2 && !pacmanStart && !ghostHouse) {
+                candidates.push({ i: i, j: j });
+            }
+        }
+    }
+    let placed = [];
+    for (let n = 0; n < powerPelletCount && candidates.length > 0; n++) {
+        let available = candidates.filter((cell) =>
+            placed.every(
+                (p) =>
+                    Math.max(Math.abs(p.i - cell.i), Math.abs(p.j - cell.j)) >=
+                    powerPelletMinGap
+            )
+        );
+        if (available.length == 0) {
+            break;
+        }
+        candidates = available;
+        let index = Math.floor(Math.random() * candidates.length);
+        let cell = candidates.splice(index, 1)[0];
+        map[cell.i][cell.j] = 4;
+        placed.push(cell);
+    }
+};
+
+let initialMap = map.map((row) => row.slice());
+placePowerPellets();
+foodLeft = countFood();
+initialFoodCount = foodLeft;
+
 let createNewPacman = () => {
     pacman = new Pacman(
         oneBlockSize,
@@ -88,30 +162,61 @@ let createNewPacman = () => {
 };
 
 let gameLoop = () => {
-    update();
+    if (!gameOver && !gameWon) {
+        update();
+    } else {
+        stopPacmanMusic();
+    }
     draw();
 };
 
 let gameInterval = setInterval(gameLoop, 1000 / fps);
 
 let restartPacmanAndGhosts = () => {
+    clearInterval(pacman.animationInterval);
+    for (let i = 0; i < ghosts.length; i++) {
+        clearInterval(ghosts[i].directionInterval);
+    }
+    frightenedUntil = 0;
     createNewPacman();
     createGhosts();
 };
 
+let resetGame = () => {
+    lives = 3;
+    score = 0;
+    gameOver = false;
+    gameWon = false;
+    map = initialMap.map((row) => row.slice());
+    placePowerPellets();
+    foodLeft = countFood();
+    restartPacmanAndGhosts();
+};
+
 let onGhostCollision = () => {
     lives--;
-    restartPacmanAndGhosts();
-    if (lives == 0) {
+    if (lives <= 0) {
+        gameOver = true;
+        return;
     }
+    restartPacmanAndGhosts();
 };
 
 let update = () => {
     pacman.moveProcess();
     pacman.eat();
+    if (gameWon) {
+        return;
+    }
     updateGhosts();
-    if (pacman.checkGhostCollision(ghosts)) {
-        onGhostCollision();
+    let collidedGhost = pacman.checkGhostCollision(ghosts);
+    if (collidedGhost >= 0) {
+        if (isFrightened()) {
+            ghosts[collidedGhost].beEaten();
+            score += frightenedScore;
+        } else {
+            onGhostCollision();
+        }
     }
 };
 
@@ -126,13 +231,24 @@ let drawFoods = () => {
                     oneBlockSize / 3,
                     "#FEB897"
                 );
+            } else if (map[i][j] == 4) {
+                canvasContext.fillStyle = "#FEB897";
+                canvasContext.beginPath();
+                canvasContext.arc(
+                    j * oneBlockSize + oneBlockSize / 2,
+                    i * oneBlockSize + oneBlockSize / 2,
+                    oneBlockSize / 3,
+                    0,
+                    2 * Math.PI
+                );
+                canvasContext.fill();
             }
         }
     }
 };
 
 let drawRemainingLives = () => {
-    canvasContext.font = "20px Emulogic";
+    canvasContext.font = "16px 'Press Start 2P', 'Emulogic', monospace";
     canvasContext.fillStyle = "white";
     canvasContext.fillText("Lives: ", 220, oneBlockSize * (map.length + 1));
 
@@ -152,7 +268,7 @@ let drawRemainingLives = () => {
 };
 
 let drawScore = () => {
-    canvasContext.font = "20px Emulogic";
+    canvasContext.font = "16px 'Press Start 2P', 'Emulogic', monospace";
     canvasContext.fillStyle = "white";
     canvasContext.fillText(
         "Score: " + score,
@@ -170,6 +286,34 @@ let draw = () => {
     pacman.draw();
     drawScore();
     drawRemainingLives();
+    if (gameOver) {
+        drawOverlay("GAME OVER", "#FF2D55");
+    } else if (gameWon) {
+        drawOverlay("YOU WIN!", "#36E0A5");
+    }
+};
+
+let drawOverlay = (text, color) => {
+    createRect(0, 0, canvas.width, canvas.height, "rgba(0, 0, 0, 0.78)");
+    canvasContext.textAlign = "center";
+    canvasContext.textBaseline = "middle";
+    canvasContext.font =
+        "36px 'Press Start 2P', 'Emulogic', monospace";
+    canvasContext.shadowColor = color;
+    canvasContext.shadowBlur = 24;
+    canvasContext.fillStyle = color;
+    canvasContext.fillText(text, canvas.width / 2, canvas.height / 2 - 12);
+    canvasContext.shadowBlur = 0;
+    canvasContext.font =
+        "12px 'Press Start 2P', 'Emulogic', monospace";
+    canvasContext.fillStyle = "white";
+    canvasContext.fillText(
+        "Premi un tasto per ricominciare",
+        canvas.width / 2,
+        canvas.height / 2 + 26
+    );
+    canvasContext.textAlign = "start";
+    canvasContext.textBaseline = "alphabetic";
 };
 
 let drawWalls = () => {
@@ -229,10 +373,12 @@ let drawWalls = () => {
 
 let createGhosts = () => {
     ghosts = [];
-    for (let i = 0; i < ghostCount * 2; i++) {
+    for (let i = 0; i < ghostCount; i++) {
+        let ghostX = (9 + (i % 2)) * oneBlockSize;
+        let ghostY = (10 + Math.floor(i / 2)) * oneBlockSize;
         let newGhost = new Ghost(
-            9 * oneBlockSize + (i % 2 == 0 ? 0 : 1) * oneBlockSize,
-            10 * oneBlockSize + (i % 2 == 0 ? 0 : 1) * oneBlockSize,
+            ghostX,
+            ghostY,
             oneBlockSize,
             oneBlockSize,
             pacman.speed / 2,
@@ -240,7 +386,7 @@ let createGhosts = () => {
             ghostImageLocations[i % 4].y,
             124,
             116,
-            6 + i
+            i
         );
         ghosts.push(newGhost);
     }
@@ -251,6 +397,11 @@ createGhosts();
 gameLoop();
 
 window.addEventListener("keydown", (event) => {
+    startPacmanMusic();
+    if (gameOver || gameWon) {
+        resetGame();
+        return;
+    }
     let k = event.keyCode;
     setTimeout(() => {
         if (k == 37 || k == 65) {
