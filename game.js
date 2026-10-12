@@ -16,6 +16,7 @@ let lives = 3;
 let ghostCount = 4;
 let gameOver = false;
 let gameWon = false;
+let paused = false;
 let foodLeft = 0;
 let initialFoodCount = 0;
 let frightenedDuration = 7000;
@@ -162,6 +163,10 @@ let createNewPacman = () => {
 };
 
 let gameLoop = () => {
+    if (paused) {
+        draw();
+        return;
+    }
     if (!gameOver && !gameWon) {
         update();
     } else {
@@ -187,6 +192,7 @@ let resetGame = () => {
     score = 0;
     gameOver = false;
     gameWon = false;
+    paused = false;
     map = initialMap.map((row) => row.slice());
     placePowerPellets();
     foodLeft = countFood();
@@ -290,10 +296,12 @@ let draw = () => {
         drawOverlay("GAME OVER", "#FF2D55");
     } else if (gameWon) {
         drawOverlay("YOU WIN!", "#36E0A5");
+    } else if (paused) {
+        drawOverlay("PAUSA", "#FFD93B", "Premi P per riprendere");
     }
 };
 
-let drawOverlay = (text, color) => {
+let drawOverlay = (text, color, subtitle) => {
     createRect(0, 0, canvas.width, canvas.height, "rgba(0, 0, 0, 0.78)");
     canvasContext.textAlign = "center";
     canvasContext.textBaseline = "middle";
@@ -308,7 +316,7 @@ let drawOverlay = (text, color) => {
         "12px 'Press Start 2P', 'Emulogic', monospace";
     canvasContext.fillStyle = "white";
     canvasContext.fillText(
-        "Premi un tasto per ricominciare",
+        subtitle || "Premi un tasto per ricominciare",
         canvas.width / 2,
         canvas.height / 2 + 26
     );
@@ -397,12 +405,28 @@ createGhosts();
 gameLoop();
 
 window.addEventListener("keydown", (event) => {
+    let k = event.keyCode;
+    if (k == 80) {
+        // p
+        if (gameOver || gameWon) {
+            return;
+        }
+        paused = !paused;
+        if (paused) {
+            stopPacmanMusic();
+        } else {
+            startPacmanMusic();
+        }
+        return;
+    }
+    if (paused) {
+        return;
+    }
     startPacmanMusic();
     if (gameOver || gameWon) {
         resetGame();
         return;
     }
-    let k = event.keyCode;
     setTimeout(() => {
         if (k == 37 || k == 65) {
             // left arrow or a
